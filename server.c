@@ -9,8 +9,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <data.h>
 /**
  * server.c
+ * Phase 1 of this personal project will be to allow one single client to connect to the server.
+ * The server program will continually listen for a socket connection from the client.
+ * Once the client has connected, the server will listen to input sent from client, and will 
+ * reply to the client with what the client sent.
  * Author: compscichris
  * Date: 9/1/24
  */
@@ -19,20 +24,33 @@ struct User
     char name[32];
     int sessionID;
 };
+
 //idea: Use the server to create a chat server that will store every user's messages.
 int main()
 {
-
+    printf("SERVER INITIALIZING...\n");
+    serverConnection();
+}
+int serverConnection()
+{
     int serv_socket, cli1_socket, cli2_socket;
     struct sockaddr_in serv_addr, cli1_addr, cli2_addr;
     struct timeval *curr_time = malloc(sizeof(struct timeval));
-    
+    int cur_ackN = 0;
+    int cur_seqN = 0;
+    int exp_ackN = 1;
+    int exp_seqN = 1;
+    int s_sessionID = rand();
     //server socket initialization
-
-
+    //head of linkedlist structure of sent and received packets
+    struct PacketQueue *pSentHead = malloc(sizeof(pQueue));
+    struct PacketQueue *pRecvHead = malloc(sizeof(pQueue));
+    //tail of linkedlist structure of sent and received packets
+    struct PacketQueue *pSentTail = NULL;
+    struct PacketQueue *pRecvTail = NULL;
     if(serv_socket<0)
     {
-        perror("ERROR creating socket");
+        perror("SERVER INITIALIZATION ERROR: SOCKET CREATION FAILURE.\n");
         exit(1);
     }    
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -43,7 +61,7 @@ int main()
     //binds the server address to the server socket 
     if(bind(serv_socket, (struct sockaddr *) &serv_addr, sizeof(serv_addr))<0)
     {
-        perror("ERROR: SERVER BINDING");
+        perror("ERROR: SERVER BINDING FAILURE.");
         exit(1);
     }
     //ACCEPTING CONNECTIONS
@@ -97,8 +115,58 @@ int main()
         }
         else
         {
-            packet buffer;
-            recv(cli1_socket, buffer, length, flags);
+            if(FD_ISSET(cli1_socket, &readfds))
+            {
+                Packet buffer;
+                int bytes = recv(cli1_socket, &buffer, sizeof(Packet), 0);
+                if(bytes <= 0)
+                {
+                    perror("Error receiving heartbeat from client");
+                }
+                else{
+                    if(buffer.seqn == exp_seqN)
+                    {
+                        struct PacketQueue *current;
+                        //first packet not in linkedlist of received packets
+                        if(pRecvTail == NULL)
+                        {
+                            current = pRecvHead;
+                            current->thisPacket = &buffer;
+                            current->nextPacket = NULL;
+                            pRecvTail = pRecvHead;
+                        }
+                        else{
+                            current = malloc(sizeof(Packet));
+                            current->thisPacket = &buffer;
+                            current->nextPacket = NULL;
+                            pRecvTail->nextPacket = current;
+                            pRecvTail = pRecvHead;
+                        }
+                        struct PacketQueue *reply;
+                        //first packet not in linkedlist of sent packets
+                        Packet buffer2 = {0, sizeof(int), s_sessionID, {0}, cur_seqN, cur_ackN};
+                        if(pSentTail == NULL)
+                        {
+                            reply = pSentHead;
+                            reply->thisPacket = &buffer2;
+                            reply->nextPacket = NULL;
+                            pSentTail = pSentHead;
+                        }
+                        else{
+                            reply = malloc(sizeof(Packet));
+                            reply->thisPacket = &buffer2;
+                            reply->nextPacket = NULL;
+                            pSentTail->nextPacket = reply;
+                            pSentTail = pSentHead;
+                        }
+                        if(send(cli1_socket, &buffer2, sizeof(Packet), 0) <= 0)
+                        {
+                            perror("ERROR: HEARTBEAT NOT RECEIVED.");
+                        }
+                    }
+                    
+                }
+            }
         }
     }
 }
