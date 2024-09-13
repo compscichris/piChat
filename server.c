@@ -24,8 +24,20 @@ struct User
     char name[32];
     int sessionID;
 };
+struct ServerConnection
+{
+    struct PacketQueue *pSentHead;
+    struct PacketQueue *pRecvHead;
+    //tail of linkedlist structure of sent and received packets
+    struct PacketQueue *pSentTail;
+    struct PacketQueue *pRecvTail;
+};
 
 //idea: Use the server to create a chat server that will store every user's messages.
+
+//HOW A CONNECTION FROM A CLIENT IS INITIATED.
+//CONNECTION IS INITIALIZED FIRST, AND HEARTBEATS ARE MADE FROM CLIENT FIRST, AND SERVER
+//SENDS BACK A HEARTBEAT. THE SERVER SHOULD HAVE 
 int main()
 {
     printf("SERVER INITIALIZING...\n");
@@ -82,14 +94,7 @@ int serverConnection()
             perror("ERROR: CLIENT NOT ACCEPTED.");
             exit(1);
         }
-        char payload[1024];
-        while(1)
-        {
-            uint32_t length;
-            int n = recv(cli1_socket,(char *) &length, 4, 0);
-            size_t size = ntohl(length);
-            int lin = recv(cli1_socket, payload, size, 0);
-        }
+        
         //Create a timer
         struct timeval connect_time;
         connect_time.tv_sec = 1;
@@ -117,49 +122,49 @@ int serverConnection()
         {
             if(FD_ISSET(cli1_socket, &readfds))
             {
-                Packet buffer;
-                int bytes = recv(cli1_socket, &buffer, sizeof(Packet), 0);
+                Packet recvBuff;
+                int bytes = recv(cli1_socket, &recvBuff, sizeof(Packet), 0);
                 if(bytes <= 0)
                 {
                     perror("Error receiving heartbeat from client");
                 }
                 else{
-                    if(buffer.seqn == exp_seqN)
+                    if(recvBuff.seqn == exp_seqN)
                     {
-                        struct PacketQueue *current;
+                        struct PacketQueue *curRecv;
                         //first packet not in linkedlist of received packets
                         if(pRecvTail == NULL)
                         {
-                            current = pRecvHead;
-                            current->thisPacket = &buffer;
-                            current->nextPacket = NULL;
+                            curRecv = pRecvHead;
+                            curRecv->thisPacket = &recvBuff;
+                            curRecv->nextPacket = NULL;
                             pRecvTail = pRecvHead;
                         }
                         else{
-                            current = malloc(sizeof(Packet));
-                            current->thisPacket = &buffer;
-                            current->nextPacket = NULL;
-                            pRecvTail->nextPacket = current;
+                            curRecv = malloc(sizeof(Packet));
+                            curRecv->thisPacket = &recvBuff;
+                            curRecv->nextPacket = NULL;
+                            pRecvTail->nextPacket = curRecv;
                             pRecvTail = pRecvHead;
                         }
                         struct PacketQueue *reply;
                         //first packet not in linkedlist of sent packets
-                        Packet buffer2 = {0, sizeof(int), s_sessionID, {0}, cur_seqN, cur_ackN};
+                        Packet sendBuff = {0, sizeof(int), s_sessionID, {0}, cur_seqN, cur_ackN};
                         if(pSentTail == NULL)
                         {
                             reply = pSentHead;
-                            reply->thisPacket = &buffer2;
+                            reply->thisPacket = &sendBuff;
                             reply->nextPacket = NULL;
                             pSentTail = pSentHead;
                         }
                         else{
                             reply = malloc(sizeof(Packet));
-                            reply->thisPacket = &buffer2;
+                            reply->thisPacket = &sendBuff;
                             reply->nextPacket = NULL;
                             pSentTail->nextPacket = reply;
                             pSentTail = pSentHead;
                         }
-                        if(send(cli1_socket, &buffer2, sizeof(Packet), 0) <= 0)
+                        if(send(cli1_socket, &sendBuff, sizeof(Packet), 0) <= 0)
                         {
                             perror("ERROR: HEARTBEAT NOT RECEIVED.");
                         }

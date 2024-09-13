@@ -10,6 +10,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <sys/time.h>
+
+#include <data.h>
 int checkIP(char*);
 int main()
 {
@@ -17,6 +20,19 @@ int main()
     char input[1024];
     char inputcopy[1024];
     char *ip = NULL;
+    int serv_socket;
+    struct sockaddr_in serv_addr;
+    struct timeval *curr_time = malloc(sizeof(struct timeval));
+    int cur_ackN = 0;
+    int cur_seqN = 0;
+    int exp_ackN = 1;
+    int exp_seqN = 1;
+    struct PacketQueue *pSentHead = malloc(sizeof(pQueue));
+    struct PacketQueue *pRecvHead = malloc(sizeof(pQueue));
+    //tail of linkedlist structure of sent and received packets
+    struct PacketQueue *pSentTail = NULL;
+    struct PacketQueue *pRecvTail = NULL;
+    
     while (1)
     {
         
@@ -38,17 +54,33 @@ int main()
             }
             else{
                 //int socketa = socket(domain, type, protocol)
-                int cli_socket;
-                struct sockaddr_in serv_addr;
+                
                 serv_addr.sin_family = AF_INET;
                 serv_addr.sin_addr.s_addr = inet_addr(*ip);
                 serv_addr.sin_port = htons(2);
                 int sockfd = socket(PF_INET, SOCK_STREAM, 0);
-                if(connect(cli_socket, (struct sockaddr*) &serv_addr, sizeof(serv_addr))<0)
+                if(connect(serv_socket, (struct sockaddr*) &serv_addr, sizeof(serv_addr))<0)
                 {
                     exit(1);
                 }
+                //send first heartbeat
+                Packet sentBeat = {0, sizeof(int), 0, 0, cur_seqN, cur_ackN};
+                Packet recvBeat;
                 char *input = (char*)malloc(1024 *sizeof(char));
+                int bytes;
+                if(send(serv_socket, &sentBeat, sizeof(Packet), 0) <=0)
+                {
+                    perror("ERROR: HEARTBEAT SENDING FAILURE.");
+                }
+                else{
+                    bytes = recv(serv_socket, &recvBeat, sizeof(Packet), 0);
+                    if(bytes <= 0)
+                    {
+                        perror("ERROR: HEARTBEAT REPLY NOT RECEIVED.");
+                    }
+                }
+                
+                Packet *sendBuff
                 size_t size = 1024;
                 printf("Send a message!");
                 int isEOF = 0;
