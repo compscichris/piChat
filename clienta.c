@@ -14,87 +14,116 @@
 
 #include <data.h>
 int checkIP(char*);
-int main()
+/**
+ * makeConnection takes the details required to make a connection
+ * 
+ */
+int makeConnection(struct servConnection *servCon, struct timeval *curr_time)
 {
-    //main function testing input grabbing from console
-    char input[1024];
-    char inputcopy[1024];
-    char *ip = NULL;
-    int serv_socket;
-    struct sockaddr_in serv_addr;
-    struct timeval *curr_time = malloc(sizeof(struct timeval));
+    //int socketa = socket(domain, type, protocol)
     int cur_ackN = 0;
     int cur_seqN = 0;
     int exp_ackN = 1;
     int exp_seqN = 1;
-    struct PacketQueue *pSentHead = malloc(sizeof(pQueue));
-    struct PacketQueue *pRecvHead = malloc(sizeof(pQueue));
-    //tail of linkedlist structure of sent and received packets
-    struct PacketQueue *pSentTail = NULL;
-    struct PacketQueue *pRecvTail = NULL;
+    servCon->serv_addr->sin_family = AF_INET;
+    servCon->serv_addr->sin_addr.s_addr = inet_addr(servCon->ip);
+    servCon->serv_addr->sin_port = htons(2);
+    int sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    if(connect(servCon->serv_socket, (struct sockaddr*) &servCon->serv_addr,
+     sizeof(servCon->serv_addr))<0)
+    {
+        exit(1);
+    }
+    //send first heartbeat
+    Packet sentBeat = {0, sizeof(int), 0, 0, cur_seqN, cur_ackN};
+    Packet recvBeat;
+    char *input = (char*)malloc(1024 *sizeof(char));
+    int bytes;
+    if(send(servCon->serv_socket, &sentBeat, sizeof(Packet), 0) <=0)
+    {
+        perror("ERROR: HEARTBEAT SENDING FAILURE.");
+    }
+    else{
+        bytes = recv(servCon->serv_socket, &recvBeat, sizeof(Packet), 0);
+        if(bytes <= 0)
+        {
+            perror("ERROR: HEARTBEAT REPLY NOT RECEIVED.");
+        }
+    }        
+    int sessionID = recvBeat.session_id;
+    size_t size = 1024;
+    printf("Send a message!");
+    int isEOF = 0;
+    while(isEOF != -1)
+    {
+        isEOF = getline(&input, &size, stdin);
+        if(isEOF != -1)
+        {
+            printf("Sending message: %s", input);
+            Packet *sendBuff = malloc(sizeof(Packet));
+            sendBuff->seqn = cur_seqN;
+            sendBuff->ackn = exp_ackN;
+            sendBuff->length = isEOF;
+            sendBuff->session_id = sessionID;
+            sendBuff->type = 1;
+            strcpy(sendBuff->payload, input);
+            if(send(servCon->serv_socket, &sendBuff, sizeof(Packet), 0) <= 0)
+            {
+                perror("ERROR: PACKET SEND ERROR");
+            }
+            Packet *recvBuff = malloc(sizeof(Packet));
+            if(recv(servCon->serv_socket, &recvBuff, sizeof(Packet), 0) <= 0)
+            {
+                perror("ERROR: PACKET NOT RECEIVED FROM SERVER.");
+            }
+            else{
+                printf("Packet from server, session ID: %d", recvBuff->session_id);
+                printf("Reply message: %s", recvBuff->payload);
+            }
+        }
+    }
+    close(servCon->serv_socket);
+            
+}
+int main()
+{
     
     while (1)
     {
-        
         //Step 1: Ask user for input of address
+        //main function testing input grabbing from console
+        char input[1024];
+        char inputcopy[1024];
+        struct timeval *curr_time = malloc(sizeof(struct timeval));
+        
+        struct servConnection *servCon = malloc(sizeof(sConnect));
+        servCon->ip = NULL;
+        servCon->serv_socket;
+        servCon->serv_addr;
+        servCon->pSentHead = malloc(sizeof(pQueue));
+        servCon->pRecvHead = malloc(sizeof(pQueue));
+        servCon->pSentTail = NULL;
+        servCon->pRecvTail = NULL;
         printf("Enter IP address of server to connect to in format of <x.x.x.x>: (quit to exit): ");
         fgets(input, sizeof(input), stdin);
         input[strcspn(input,"\n")] = 0;
         memcpy(inputcopy, input, sizeof(input));
-        ip = inputcopy;
+        servCon->ip = inputcopy;
         if(feof(stdin) || input == "quit")
         {
             printf("EXITING");
             break;
         }
         else{
-            if(checkIP(ip) == -1)
+            if(checkIP(servCon->ip) == -1)
             {
                 printf("trying again\n");
             }
             else{
-                //int socketa = socket(domain, type, protocol)
-                
-                serv_addr.sin_family = AF_INET;
-                serv_addr.sin_addr.s_addr = inet_addr(*ip);
-                serv_addr.sin_port = htons(2);
-                int sockfd = socket(PF_INET, SOCK_STREAM, 0);
-                if(connect(serv_socket, (struct sockaddr*) &serv_addr, sizeof(serv_addr))<0)
-                {
-                    exit(1);
-                }
-                //send first heartbeat
-                Packet sentBeat = {0, sizeof(int), 0, 0, cur_seqN, cur_ackN};
-                Packet recvBeat;
-                char *input = (char*)malloc(1024 *sizeof(char));
-                int bytes;
-                if(send(serv_socket, &sentBeat, sizeof(Packet), 0) <=0)
-                {
-                    perror("ERROR: HEARTBEAT SENDING FAILURE.");
-                }
-                else{
-                    bytes = recv(serv_socket, &recvBeat, sizeof(Packet), 0);
-                    if(bytes <= 0)
-                    {
-                        perror("ERROR: HEARTBEAT REPLY NOT RECEIVED.");
-                    }
-                }
-                
-                Packet *sendBuff
-                size_t size = 1024;
-                printf("Send a message!");
-                int isEOF = 0;
-                while(isEOF != -1)
-                {
-                    isEOF = getline(&input, &size, stdin);
-                    if(isEOF != -1)
-                    {
-                        printf("%s", input);
-                    }
-                }
-                close(cli_socket);
+                makeConnection(servCon, curr_time);
             }
         }
+        
     }
     
     
