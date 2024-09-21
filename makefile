@@ -1,5 +1,12 @@
 CC = gcc
 CFLAGS = -Wall
-TARGET = test
-$(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) $(TARGET).c -o $(TARGET)
+TARGET = server clienta
+
+all: $(TARGET)
+
+%: %.c
+	$(CC) $(CFLAGS) -o $@ $^
+server: server.c
+	$(CC) $(CFLAGS) -o server server.c
+clean:
+	rm -f $(TARGET)

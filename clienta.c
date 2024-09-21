@@ -12,12 +12,54 @@
 #include <netdb.h>
 #include <sys/time.h>
 
-#include <data.h>
+#include "data.h"
 int checkIP(char*);
 /**
  * makeConnection takes the details required to make a connection
  * 
  */
+int makeConnection(struct servConnection *servCon, struct timeval *curr_time);
+
+int main()
+{
+    
+    while (1)
+    {
+        //Step 1: Ask user for input of address
+        //main function testing input grabbing from console
+        char input[1024];
+        char inputcopy[1024];
+        struct timeval *curr_time = malloc(sizeof(struct timeval));
+        
+        struct servConnection *servCon = malloc(sizeof(sConnect));
+        servCon->ip = NULL;
+        servCon->pSentHead = malloc(sizeof(pQueue));
+        servCon->pRecvHead = malloc(sizeof(pQueue));
+        servCon->pSentTail = NULL;
+        servCon->pRecvTail = NULL;
+        servCon->type = 1;
+        printf("Enter IP address of server to connect to in format of <x.x.x.x>: (quit to exit): ");
+        fgets(input, sizeof(input), stdin);
+        input[strcspn(input,"\n")] = 0;
+        memcpy(inputcopy, input, sizeof(input));
+        servCon->ip = inputcopy;
+        if(feof(stdin) || strcmp(input,"quit") == 0)
+        {
+            printf("EXITING");
+            break;
+        }
+        else{
+            if(checkIP(servCon->ip) == -1)
+            {
+                printf("trying again\n");
+            }
+            else{
+                makeConnection(servCon, curr_time);
+            }
+        }
+    }
+    return 0; 
+}
 int makeConnection(struct servConnection *servCon, struct timeval *curr_time)
 {
     //int socketa = socket(domain, type, protocol)
@@ -28,14 +70,14 @@ int makeConnection(struct servConnection *servCon, struct timeval *curr_time)
     servCon->serv_addr->sin_family = AF_INET;
     servCon->serv_addr->sin_addr.s_addr = inet_addr(servCon->ip);
     servCon->serv_addr->sin_port = htons(2);
-    int sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    servCon->serv_socket = socket(PF_INET, SOCK_STREAM, 0);
     if(connect(servCon->serv_socket, (struct sockaddr*) &servCon->serv_addr,
      sizeof(servCon->serv_addr))<0)
     {
         exit(1);
     }
     //send first heartbeat
-    Packet sentBeat = {0, sizeof(int), 0, 0, cur_seqN, cur_ackN};
+    Packet sentBeat = {0, sizeof(int), 0, "0", cur_seqN, cur_ackN};
     Packet recvBeat;
     char *input = (char*)malloc(1024 *sizeof(char));
     int bytes;
@@ -83,51 +125,12 @@ int makeConnection(struct servConnection *servCon, struct timeval *curr_time)
         }
     }
     close(servCon->serv_socket);
-            
+    return 0;        
 }
-int main()
-{
-    
-    while (1)
-    {
-        //Step 1: Ask user for input of address
-        //main function testing input grabbing from console
-        char input[1024];
-        char inputcopy[1024];
-        struct timeval *curr_time = malloc(sizeof(struct timeval));
-        
-        struct servConnection *servCon = malloc(sizeof(sConnect));
-        servCon->ip = NULL;
-        servCon->serv_socket;
-        servCon->serv_addr;
-        servCon->pSentHead = malloc(sizeof(pQueue));
-        servCon->pRecvHead = malloc(sizeof(pQueue));
-        servCon->pSentTail = NULL;
-        servCon->pRecvTail = NULL;
-        printf("Enter IP address of server to connect to in format of <x.x.x.x>: (quit to exit): ");
-        fgets(input, sizeof(input), stdin);
-        input[strcspn(input,"\n")] = 0;
-        memcpy(inputcopy, input, sizeof(input));
-        servCon->ip = inputcopy;
-        if(feof(stdin) || input == "quit")
-        {
-            printf("EXITING");
-            break;
-        }
-        else{
-            if(checkIP(servCon->ip) == -1)
-            {
-                printf("trying again\n");
-            }
-            else{
-                makeConnection(servCon, curr_time);
-            }
-        }
-        
-    }
-    
-    
-}
+/**
+ * checkIP is a function that scans a string from a pointer for the proper delimiters, and
+ * then scans to see if it is valid IP address format.
+ */
 /**
  * checkIP is a function that scans a string from a pointer for the proper delimiters, and
  * then scans to see if it is valid IP address format.
@@ -138,12 +141,15 @@ int checkIP(char *ip)
     char* delimit = ".";
     char* numbers = strtok(ip, delimit);
     int count = 1;
+    //printf("WORKING\n");
     while(numbers != NULL)
     {
         //if the ip address segment has a larger size than 3
-        if(strlen(numbers) > 3)
+        //printf("WORKING %d +1\n", count);
+        int length = strlen(numbers);
+        if(length > 3)
         {
-            printf("IP ADDRESS ERROR: SEGMENT %d HAS LENGTH OF %d.\n",count, strlen(numbers));
+            printf("IP ADDRESS ERROR: SEGMENT %d HAS LENGTH OF %d.\n",count, length);
             return -1;
         }
         else
@@ -152,11 +158,12 @@ int checkIP(char *ip)
             {
                 if(isdigit(*numptr) == 0)
                 {
-                    printf("IP ADDRESS ERROR: SEGMENT %d IS NOT NUMERIC.\n",count, strlen(numbers));
+                    printf("IP ADDRESS ERROR: SEGMENT %d IS NOT NUMERIC.\n",count);
                     return -1;
                 }
             }
         }
+        //printf("WORKING %d +2\n", count);
         numbers = strtok(NULL, delimit);
         count++;
     }

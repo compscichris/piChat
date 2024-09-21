@@ -9,8 +9,8 @@ typedef struct DataPacket
 }Packet;
 typedef struct PacketQueue
 {
-    struct Packet *thisPacket;
-    struct Packet *nextPacket;
+    Packet *thisPacket;
+    struct PacketQueue *nextPacket;
 }pQueue;
 /**
  * servConnection is a connection structure that represents a connection
@@ -21,6 +21,7 @@ typedef struct PacketQueue
 typedef struct servConnection
 {
     char *ip;
+    int type;
     int serv_socket;
     struct sockaddr_in *serv_addr;
     struct PacketQueue *pSentHead;
@@ -32,8 +33,8 @@ typedef struct servConnection
 typedef struct cliConnection
 {
     char *ip;
-    int serv_socket;
-    struct sockaddr_in *serv_addr;
+    int cli_socket;
+    struct sockaddr_in *cli_addr;
     struct PacketQueue *pSentHead;
     struct PacketQueue *pRecvHead;
     //tail of linkedlist structure of sent and received packets
